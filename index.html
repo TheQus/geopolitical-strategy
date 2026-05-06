@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEOSTRAT — World Domination</title>
+
+<script src="world.js"></script>
+<script src="engine.js"></script>
+
+<style>
+/* CSS остался без изменений, сохраняем твою эстетику */
+:root {
+ --bg: #0a0c10; --bg2: #111318; --bg3: #181b22;
+ --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+ --text: #e8eaf0; --text2: #9098a8;
+ --accent: #4a9eff; --accent2: #2d6cbf;
+ --green: #3dba7e; --red: #e05555; --amber: #e0a530; --purple: #9b7fe8;
+ --panel-w: 280px; --right-w: 300px; --top-h: 48px; --bottom-h: 140px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Courier New',monospace; height:100vh; overflow:hidden; display:flex; flex-direction:column; font-size:13px; }
+
+/* TOP BAR */
+#topbar { height:var(--top-h); background:var(--bg2); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 12px; gap:16px; flex-shrink:0; z-index:100; }
+#topbar .logo { font-size:15px; font-weight:700; letter-spacing:4px; color:var(--accent); text-transform:uppercase; }
+.res-group { display:flex; align-items:center; gap:6px; padding:4px 10px; background:var(--bg3); border:1px solid var(--border); border-radius:3px; }
+.res-label { color:var(--text2); font-size:11px; }
+.res-val { color:var(--text); font-weight:700; min-width:40px; }
+.res-val.good { color:var(--green); } .res-val.warn { color:var(--amber); } .res-val.bad { color:var(--red); }
+#turn-info { margin-left:auto; display:flex; align-items:center; gap:12px; }
+#date-display { color:var(--accent); font-weight:700; font-size:14px; }
+#btn-next-turn { background:var(--accent); color:#fff; border:none; padding:6px 16px; border-radius:3px; cursor:pointer; font-family:inherit; font-size:12px; letter-spacing:1px; text-transform:uppercase; font-weight:700; transition:background 0.15s; }
+#btn-next-turn:hover { background:var(--accent2); }
+#speed-select { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:4px 8px; border-radius:3px; font-family:inherit; font-size:11px; }
+
+/* MAIN LAYOUT & PANELS */
+#main { display:flex; flex:1; overflow:hidden; }
+#left-panel { width:var(--panel-w); background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow:hidden; }
+.panel-section { border-bottom:1px solid var(--border); }
+.panel-title { padding:8px 12px; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text2); background:var(--bg3); }
+
+/* MY COUNTRY */
+#my-country { padding:12px; }
+#my-country .country-name { font-size:16px; font-weight:700; margin-bottom:4px; }
+#my-country .ideology-tag { display:inline-block; padding:2px 8px; border-radius:2px; font-size:10px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+.ideo-democratic { background:rgba(74,158,255,0.2); color:var(--accent); border:1px solid rgba(74,158,255,0.3); }
+.ideo-authoritarian { background:rgba(224,85,85,0.2); color:var(--amber); border:1px solid rgba(224,165,48,0.3); }
+.ideo-communist { background:rgba(224,85,85,0.2); color:#ff7070; border:1px solid rgba(224,85,85,0.3); }
+.ideo-fascist { background:rgba(80,80,80,0.4); color:#aaa; border:1px solid rgba(150,150,150,0.3); }
+.ideo-theocratic { background:rgba(61,186,126,0.2); color:var(--green); border:1px solid rgba(61,186,126,0.3); }
+.stat-row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.stat-row:last-child { border-bottom:none; }
+.stat-row .k { color:var(--text2); } .stat-row .v { font-weight:700; }
+
+/* ACTION QUEUE */
+#action-queue { padding:8px 12px; max-height:180px; overflow-y:auto; }
+.action-item { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); }
+.action-icon { width:20px; height:20px; border-radius:2px; display:flex; align-items:center; justify-content:center; font-size:10px; flex-shrink:0; }
+.action-icon.military { background:rgba(224,85,85,0.2); color:var(--red); }
+.action-icon.build { background:rgba(61,186,126,0.2); color:var(--green); }
+.action-icon.diplo { background:rgba(74,158,255,0.2); color:var(--accent); }
+.action-icon.casus { background:rgba(224,165,48,0.2); color:var(--amber); }
+.action-info { flex:1; min-width:0; }
+.action-name { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.action-timer { font-size:10px; color:var(--text2); }
+.action-progress { height:2px; background:var(--bg3); border-radius:1px; margin-top:3px; }
+.action-progress-fill { height:100%; border-radius:1px; transition:width 0.3s; }
+.action-progress-fill.military { background:var(--red); } .action-progress-fill.build { background:var(--green); }
+.action-progress-fill.diplo { background:var(--accent); } .action-progress-fill.casus { background:var(--amber); }
+.action-cancel { color:var(--text2); cursor:pointer; font-size:14px; padding:2px 4px; line-height:1; }
+.action-cancel:hover { color:var(--red); }
+#no-actions { color:var(--text2); font-size:11px; padding:8px 0; text-align:center; }
+
+/* ACTION BUTTONS */
+#action-buttons { padding:8px 12px; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.act-btn { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:6px 8px; border-radius:3px; cursor:pointer; font-family:inherit; font-size:11px; text-align:left; transition:all 0.15s; }
+.act-btn:hover { border-color:var(--border2); background:var(--bg2); }
+.act-btn .act-btn-title { font-weight:700; display:block; font-size:11px; }
+.act-btn .act-btn-cost { color:var(--text2); font-size:10px; }
+
+/* MAP */
+#map-container { flex:1; position:relative; overflow:hidden; background:#0e1420; }
+#world-map { width:100%; height:100%; }
+.province { stroke-width:0.5; stroke:rgba(0,0,0,0.6); cursor:pointer; transition:opacity 0.15s; }
+.province:hover { opacity:0.8; stroke:rgba(255,255,255,0.4); stroke-width:1; }
+.province.selected { stroke:rgba(255,255,255,0.9); stroke-width:1.5; }
+.province.at-war { animation:war-pulse 1s ease-in-out infinite alternate; }
+@keyframes war-pulse { from { opacity:1; } to { opacity:0.7; } }
+
+/* RIGHT PANEL */
+#right-panel { width:var(--right-w); background:var(--bg2); border-left:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow:hidden; }
+#selected-country { padding:12px; flex-shrink:0; }
+#selected-country .sc-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+#sc-flag { width:36px; height:24px; border-radius:2px; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; background:var(--bg3); }
+#sc-name { font-size:14px; font-weight:700; } #sc-leader { font-size:11px; color:var(--text2); }
+.sc-row { display:flex; justify-content:space-between; padding:3px 0; font-size:12px; border-bottom:1px solid var(--border); }
+.sc-row:last-child { border-bottom:none; } .sc-row .k { color:var(--text2); }
+#sc-actions { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.sc-btn { background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:3px; cursor:pointer; font-family:inherit; font-size:11px; text-align:center; transition:all 0.15s; }
+.sc-btn:hover { border-color:var(--border2); }
+.sc-btn.danger { border-color:rgba(224,85,85,0.3); color:var(--red); }
+.sc-btn.danger:hover { background:rgba(224,85,85,0.1); }
+.sc-btn.success { border-color:rgba(61,186,126,0.3); color:var(--green); }
+.sc-btn.success:hover { background:rgba(61,186,126,0.1); }
+#sc-placeholder { color:var(--text2); font-size:11px; text-align:center; padding:20px 12px; }
+.rel-bar-wrap { display:flex; align-items:center; gap:6px; margin-top:4px; }
+.rel-bar { flex:1; height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; }
+.rel-bar-fill { height:100%; border-radius:2px; }
+.rel-val { font-size:11px; font-weight:700; min-width:30px; text-align:right; }
+
+/* BOTTOM BAR & NEWS */
+#bottom-bar { height:var(--bottom-h); background:var(--bg2); border-top:1px solid var(--border); display:flex; flex-shrink:0; overflow:hidden; }
+#news-panel { flex:1; display:flex; flex-direction:column; }
+#news-header { padding:6px 12px; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text2); background:var(--bg3); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+#news-content { flex:1; overflow:hidden; position:relative; }
+#news-current { padding:8px 12px; }
+#news-date { font-size:10px; color:var(--text2); margin-bottom:3px; }
+#news-title { font-size:13px; font-weight:700; margin-bottom:3px; }
+#news-body { font-size:11px; color:var(--text2); line-height:1.5; }
+#news-nav { display:flex; align-items:center; gap:8px; padding:0 12px 6px; }
+#news-nav button { background:var(--bg3); border:1px solid var(--border); color:var(--text2); padding:3px 8px; border-radius:2px; cursor:pointer; font-family:inherit; font-size:10px; }
+#news-nav button:hover { color:var(--text); border-color:var(--border2); }
+#news-counter { font-size:10px; color:var(--text2); }
+#news-indicator { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--red); margin-right:4px; animation:blink 1s ease-in-out infinite alternate; }
+
+/* WARS & UI EXTRAS */
+#war-panel { width:220px; border-left:1px solid var(--border); display:flex; flex-direction:column; }
+#war-header { padding:6px 12px; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text2); background:var(--bg3); border-bottom:1px solid var(--border); }
+.war-item { padding:4px 6px; border:1px solid rgba(224,85,85,0.2); border-radius:2px; margin-bottom:4px; font-size:11px; background:rgba(224,85,85,0.05); }
+.war-item .war-title { font-weight:700; color:var(--red); } .war-item .war-status { color:var(--text2); font-size:10px; }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:1000; }
+.modal { background:var(--bg2); border:1px solid var(--border2); border-radius:4px; padding:20px; min-width:340px; max-width:500px; }
+.modal h2 { font-size:14px; font-weight:700; letter-spacing:1px; text-transform:uppercase; margin-bottom:14px; color:var(--accent); }
+.modal-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.modal-row .mk { color:var(--text2); }
+.modal-actions { display:flex; gap:8px; margin-top:16px; }
+.modal-btn { flex:1; padding:8px; border-radius:3px; cursor:pointer; font-family:inherit; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; border:1px solid var(--border); background:var(--bg3); color:var(--text); transition:all 0.15s; }
+.modal-btn:hover { background:var(--bg); }
+.modal-btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; } .modal-btn.primary:hover { background:var(--accent2); }
+.modal-btn.danger { background:rgba(224,85,85,0.15); border-color:rgba(224,85,85,0.4); color:var(--red); }
+.modal-input { width:100%; background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:3px; font-family:inherit; font-size:12px; margin-top:6px; }
+
+/* CHAT, TOOLTIP, NOTIF */
+#chat-panel { position:fixed; right:calc(var(--right-w) + 8px); bottom:calc(var(--bottom-h) + 8px); width:320px; height:300px; background:var(--bg2); border:1px solid var(--border2); border-radius:4px; display:none; flex-direction:column; z-index:200; }
+#chat-panel.open { display:flex; }
+#chat-header { padding:8px 12px; background:var(--bg3); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700; }
+#chat-close { cursor:pointer; color:var(--text2); }
+#chat-messages { flex:1; overflow-y:auto; padding:8px 12px; display:flex; flex-direction:column; gap:6px; }
+.chat-msg { padding:5px 8px; border-radius:3px; font-size:11px; line-height:1.5; max-width:90%; }
+.chat-msg.from-me { background:rgba(74,158,255,0.15); border:1px solid rgba(74,158,255,0.2); align-self:flex-end; }
+.chat-msg.from-them { background:var(--bg3); border:1px solid var(--border); align-self:flex-start; }
+.chat-msg .msg-sender { font-weight:700; margin-bottom:2px; font-size:10px; color:var(--text2); }
+#chat-input-row { display:flex; padding:8px; gap:6px; border-top:1px solid var(--border); }
+#chat-input { flex:1; background:var(--bg3); border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:3px; font-family:inherit; font-size:11px; }
+#chat-send { background:var(--accent); border:none; color:#fff; padding:5px 10px; border-radius:3px; cursor:pointer; font-family:inherit; font-size:11px; }
+#tooltip { position:fixed; background:var(--bg2); border:1px solid var(--border2); border-radius:3px; padding:6px 10px; font-size:11px; pointer-events:none; z-index:500; display:none; max-width:200px; }
+#notifications { position:fixed; top:60px; right:320px; display:flex; flex-direction:column; gap:6px; z-index:900; pointer-events:none; }
+.notif { background:var(--bg2); border:1px solid var(--border2); border-radius:3px; padding:8px 12px; font-size:12px; max-width:280px; animation:slide-in 0.3s ease; pointer-events:auto; }
+.notif.war { border-color:rgba(224,85,85,0.5); } .notif.diplo { border-color:rgba(74,158,255,0.4); } .notif.info { border-color:rgba(61,186,126,0.4); }
+@keyframes slide-in { from{transform:translateX(40px);opacity:0;} to{transform:translateX(0);opacity:1;} }
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:var(--bg3); } ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+/* MINIMAP */
+#minimap { position:absolute; bottom:8px; left:8px; width:160px; height:80px; background:rgba(10,12,16,0.8); border:1px solid var(--border); border-radius:3px; overflow:hidden; }
+#minimap svg { width:100%; height:100%; }
+
+/* COUNTRY SELECT SCREEN */
+#country-select-screen { position:fixed; inset:0; background:var(--bg); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+#cs-title { font-size:32px; font-weight:700; letter-spacing:8px; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
+#cs-sub { font-size:12px; color:var(--text2); letter-spacing:3px; text-transform:uppercase; margin-bottom:40px; }
+#cs-list { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; max-width:800px; max-height:500px; overflow-y:auto; padding:4px; }
+.cs-card { background:var(--bg2); border:1px solid var(--border); border-radius:3px; padding:12px; cursor:pointer; transition:all 0.15s; }
+.cs-card:hover { border-color:var(--accent); background:var(--bg3); }
+.cs-card .cs-flag { font-size:24px; margin-bottom:6px; }
+.cs-card .cs-name { font-size:12px; font-weight:700; margin-bottom:2px; }
+.cs-card .cs-ideo { font-size:10px; color:var(--text2); }
+.cs-card .cs-power { font-size:10px; color:var(--amber); margin-top:4px; }
+</style>
+</head>
+<body>
+<div id="country-select-screen">
+ <div id="cs-title">GEOSTRAT</div>
+ <div id="cs-sub">Глобальная геополитика</div>
+ <div id="cs-list"></div>
+</div>
+
+<div id="topbar" style="display:none">
+ <div class="logo">GEOSTRAT</div>
+ <div class="res-group"><span class="res-label">АРМИЯ</span><span class="res-val" id="res-military">0</span></div>
+ <div class="res-group"><span class="res-label">БРИГАДЫ</span><span class="res-val" id="res-brigades">0</span></div>
+ <div class="res-group"><span class="res-label">ЭКОНОМИКА</span><span class="res-val" id="res-economy">0</span></div>
+ <div class="res-group"><span class="res-label">НАСЕЛЕНИЕ</span><span class="res-val" id="res-population">0</span></div>
+ <div class="res-group"><span class="res-label">ПРОВИНЦИИ</span><span class="res-val" id="res-provinces">0</span></div>
+ <div id="turn-info">
+   <select id="speed-select"><option value="month">1 месяц/ход</option><option value="week">1 неделя/ход</option></select>
+   <div id="date-display">Янв 2024</div>
+   <button id="btn-next-turn" onclick="triggerNextTurn()">Следующий ход ▶</button>
+ </div>
+</div>
+
+<div id="main" style="display:none">
+ <div id="left-panel">
+   <div class="panel-section">
+     <div class="panel-title">Моя страна</div>
+     <div id="my-country">
+       <div class="country-name" id="my-country-name">—</div>
+       <div class="ideology-tag" id="my-ideology">?</div>
+       <div class="stat-row"><span class="k">Лидер</span><span class="v" id="my-leader">—</span></div>
+       <div class="stat-row"><span class="k">Бригады</span><span class="v" id="my-brigades">0</span></div>
+       <div class="stat-row"><span class="k">Экономика</span><span class="v" id="my-econ">0</span></div>
+       <div class="stat-row"><span class="k">Население</span><span class="v" id="my-pop">0M</span></div>
+       <div class="stat-row"><span class="k">Статус</span><span class="v" id="my-status">Мирное время</span></div>
+     </div>
+   </div>
+   <div class="panel-section">
+     <div class="panel-title">Очередь действий</div>
+     <div id="action-queue"><div id="no-actions">Нет активных действий</div></div>
+   </div>
+   <div class="panel-section">
+     <div class="panel-title">Действия</div>
+     <div id="action-buttons">
+       <button class="act-btn" onclick="openModal('train-brigade')"><span class="act-btn-title">⚔ Создать бригаду</span><span class="act-btn-cost">Экономика: 30</span></button>
+       <button class="act-btn" onclick="openModal('build-factory')"><span class="act-btn-title">🏭 Построить завод</span><span class="act-btn-cost">Экономика: 50</span></button>
+       <button class="act-btn" onclick="openModal('improve-relations')"><span class="act-btn-title">🤝 Улучшить отношения</span><span class="act-btn-cost">Время: 2 хода</span></button>
+       <button class="act-btn" onclick="openModal('form-alliance')"><span class="act-btn-title">🛡 Союз</span><span class="act-btn-cost">Отношения: 60+</span></button>
+       <button class="act-btn" onclick="openDiplomaticChat()"><span class="act-btn-title">💬 Переговоры</span><span class="act-btn-cost">Дипломатия</span></button>
+       <button class="act-btn" onclick="openModal('recruit-manpower')"><span class="act-btn-title">👥 Мобилизация</span><span class="act-btn-cost">Население: -4%</span></button>
+     </div>
+   </div>
+ </div>
+
+ <div id="map-container">
+   <svg id="world-map" viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg"></svg>
+   <div id="minimap"><svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg" id="minimap-svg"></svg></div>
+   <div id="tooltip"></div>
+ </div>
+
+ <div id="right-panel">
+   <div class="panel-title">Выбранная страна</div>
+   <div id="selected-country">
+     <div id="sc-placeholder">Кликните на страну на карте</div>
+     <div id="sc-content" style="display:none">
+       <div class="sc-header">
+         <div id="sc-flag">🏳</div>
+         <div><div id="sc-name">—</div><div id="sc-leader">—</div></div>
+       </div>
+       <div id="sc-stats">
+         <div class="sc-row"><span class="k">Идеология</span><span id="sc-ideo">—</span></div>
+         <div class="sc-row"><span class="k">Бригады (прим.)</span><span id="sc-brigades">~0</span></div>
+         <div class="sc-row"><span class="k">Экономика</span><span id="sc-econ">—</span></div>
+         <div class="sc-row"><span class="k">Статус</span><span id="sc-status">—</span></div>
+         <div class="sc-row"><span class="k">Отношения</span><span id="sc-rel-val">—</span></div>
+       </div>
+       <div class="rel-bar-wrap">
+         <div class="rel-bar"><div class="rel-bar-fill" id="sc-rel-bar" style="width:50%; background:var(--amber)"></div></div>
+         <span class="rel-val" id="sc-rel-num">0</span>
+       </div>
+       <div id="sc-actions">
+         <button class="sc-btn" onclick="openModal('casus-belli')" id="btn-casus">⚔ Оправдать войну</button>
+         <button class="sc-btn danger" onclick="executeAction('declare-war')" id="btn-declare-war" style="display:none">⚔ Объявить войну!</button>
+         <button class="sc-btn success" onclick="openModal('improve-selected')">🤝 Улучшить отношения</button>
+         <button class="sc-btn" onclick="openDiplomaticChat()">💬 Открыть переговоры</button>
+       </div>
+     </div>
+   </div>
+   <div class="panel-title" style="margin-top:8px">Войны</div>
+   <div id="war-list" style="flex:1; overflow-y:auto; padding:8px;">
+     <div style="color:var(--text2);font-size:11px;text-align:center;padding:10px">Войн нет</div>
+   </div>
+   <div class="panel-title">Союзники</div>
+   <div id="ally-list" style="padding:8px; overflow-y:auto; max-height:100px;">
+     <div style="color:var(--text2);font-size:11px;text-align:center;padding:6px">Союзов нет</div>
+   </div>
+ </div>
+</div>
+
+<div id="bottom-bar" style="display:none">
+ <div id="news-panel">
+   <div id="news-header">
+     <span><span id="news-indicator"></span>НОВОСТИ</span>
+     <span id="news-count-label" style="font-size:10px;color:var(--text2)"></span>
+   </div>
+   <div id="news-content">
+     <div id="news-current">
+       <div id="news-date"></div>
+       <div id="news-title">Добро пожаловать в GEOSTRAT</div>
+       <div id="news-body">Запуск движка... Ожидание старта игры.</div>
+     </div>
+   </div>
+   <div id="news-nav">
+     <button onclick="prevNews()">◀ Пред</button>
+     <span id="news-counter">0 / 0</span>
+     <button onclick="nextNews()">След ▶</button>
+   </div>
+ </div>
+ <div id="war-panel">
+   <div id="war-header">АКТИВНЫЕ ВОЙНЫ</div>
+   <div id="war-list-bottom" style="flex:1;overflow-y:auto;padding:6px;font-size:11px;color:var(--text2);text-align:center;padding-top:12px">Мир во всём мире</div>
+ </div>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal(event)">
+ <div class="modal" id="modal-box" onclick="event.stopPropagation()">
+   <h2 id="modal-title">Действие</h2>
+   <div id="modal-body"></div>
+   <div class="modal-actions" id="modal-actions"></div>
+ </div>
+</div>
+
+<div id="chat-panel">
+ <div id="chat-header">
+   <span id="chat-title">Дипломатические переговоры</span>
+   <span id="chat-close" onclick="closeDiplomaticChat()">✕</span>
+ </div>
+ <div id="chat-messages"></div>
+ <div id="chat-input-row">
+   <input id="chat-input" placeholder="Введите сообщение..." onkeydown="if(event.key==='Enter')sendChatMsg()">
+   <button id="chat-send" onclick="sendChatMsg()">Отправить</button>
+ </div>
+</div>
+
+<div id="notifications"></div>
+
+<script>
+// ============================================================
+// UI LAYER (VIEW) & CONTROLLER
+// ============================================================
+let newsCursor = -1;
+
+// Перемапленные SVG-пути под генератор province (Из world.js: ID_Индекс)
+const PROVINCE_PATHS = {
+ 'CAN_0': 'M 130 30 L 230 30 L 240 80 L 180 100 L 130 80 Z',
+ 'CAN_1': 'M 70 50 L 130 30 L 130 80 L 100 100 L 70 80 Z',
+ 'USA_0': 'M 100 100 L 180 100 L 190 130 L 160 160 L 100 150 L 90 130 Z',
+ 'USA_1': 'M 180 100 L 240 80 L 250 110 L 230 140 L 190 130 Z',
+ 'USA_2': 'M 90 130 L 160 160 L 165 180 L 120 180 L 90 160 Z',
+ 'MEX_0': 'M 90 160 L 165 180 L 160 210 L 130 220 L 100 210 L 85 190 Z',
+ 'COL_0': 'M 115 220 L 160 215 L 160 240 L 130 250 L 115 240 Z',
+ 'VEN_0': 'M 145 210 L 175 210 L 175 230 L 160 240 L 145 230 Z',
+ 'PER_0': 'M 115 240 L 150 245 L 150 280 L 125 285 L 110 270 Z',
+ 'BRA_0': 'M 155 225 L 210 215 L 220 260 L 200 290 L 165 285 L 150 260 Z',
+ 'BRA_1': 'M 165 285 L 200 290 L 205 320 L 175 330 L 160 310 Z',
+ 'ARG_0': 'M 140 310 L 175 305 L 178 360 L 150 380 L 130 360 L 128 330 Z',
+ 'GBR_0': 'M 430 60 L 450 55 L 460 80 L 445 95 L 428 85 Z',
+ 'FRA_0': 'M 445 90 L 475 85 L 485 110 L 465 125 L 445 115 Z',
+ 'ESP_0': 'M 440 120 L 480 115 L 488 140 L 460 150 L 440 145 Z',
+ 'DEU_0': 'M 470 70 L 510 65 L 520 90 L 498 105 L 470 100 Z',
+ 'ITA_0': 'M 480 110 L 510 100 L 520 130 L 510 155 L 490 155 L 478 135 Z',
+ 'POL_0': 'M 510 65 L 550 60 L 560 85 L 535 100 L 510 95 Z',
+ 'UKR_0': 'M 550 70 L 600 65 L 615 90 L 585 105 L 550 100 Z',
+ 'TUR_0': 'M 560 115 L 620 108 L 630 130 L 600 145 L 560 140 Z',
+ 'RUS_0': 'M 560 30 L 700 25 L 720 60 L 615 90 L 560 70 Z',
+ 'RUS_1': 'M 700 25 L 850 20 L 870 55 L 780 65 L 720 60 Z',
+ 'RUS_2': 'M 780 65 L 870 55 L 880 100 L 840 110 L 780 100 Z',
+ 'IRN_0': 'M 620 115 L 680 108 L 695 140 L 665 158 L 620 150 Z',
+ 'SAU_0': 'M 590 150 L 665 145 L 680 180 L 650 200 L 600 190 L 585 170 Z',
+ 'ISR_0': 'M 575 138 L 593 135 L 598 155 L 578 158 Z',
+ 'EGY_0': 'M 565 155 L 605 148 L 612 180 L 585 185 L 562 175 Z',
+ 'ETH_0': 'M 590 195 L 640 188 L 648 220 L 620 235 L 590 225 Z',
+ 'NGA_0': 'M 475 195 L 530 188 L 540 220 L 510 235 L 475 225 Z',
+ 'COD_0': 'M 520 235 L 580 228 L 590 270 L 560 285 L 520 275 Z',
+ 'ZAF_0': 'M 520 305 L 580 298 L 590 340 L 560 360 L 520 350 Z',
+ 'PAK_0': 'M 670 120 L 720 113 L 730 145 L 700 158 L 665 150 Z',
+ 'IND_0': 'M 690 155 L 750 148 L 760 190 L 730 210 L 695 200 L 685 180 Z',
+ 'IND_1': 'M 730 200 L 765 195 L 770 225 L 745 238 L 725 225 Z',
+ 'CHN_0': 'M 730 60 L 820 50 L 840 90 L 800 105 L 740 100 Z',
+ 'CHN_1': 'M 790 100 L 850 88 L 865 125 L 830 140 L 790 130 Z',
+ 'CHN_2': 'M 820 135 L 870 125 L 875 155 L 850 165 L 820 158 Z',
+ 'PRK_0': 'M 840 85 L 870 80 L 878 100 L 858 110 L 838 103 Z',
+ 'KOR_0': 'M 850 100 L 878 95 L 882 118 L 860 125 L 848 115 Z',
+ 'JPN_0': 'M 880 80 L 905 75 L 915 105 L 895 115 L 878 108 Z',
+ 'VNM_0': 'M 790 165 L 825 158 L 830 200 L 808 210 L 785 198 Z',
+ 'THA_0': 'M 760 165 L 795 158 L 800 190 L 778 202 L 758 190 Z',
+ 'IDN_0': 'M 810 240 L 880 230 L 895 260 L 860 275 L 808 265 Z',
+ 'AUS_0': 'M 820 280 L 930 265 L 950 330 L 910 360 L 840 355 L 815 325 Z',
+};
+
+// Экспортируем UI глобально, чтобы engine.js мог дёргать оповещения
+window.UI = {
+ showNotif: function(msg, type='info') {
+   const el = document.createElement('div');
+   el.className = `notif ${type}`;
+   el.textContent = msg;
+   document.getElementById('notifications').appendChild(el);
+   setTimeout(() => el.remove(), 4000);
+ },
+ onNewNews: function(newsItem) {
+   newsCursor = ENGINE.state.news.length - 1;
+   showCurrentNews();
+   if(newsItem.type === 'war') this.showNotif(newsItem.title, 'war');
+ }
+};
+
+// ============================================================
+// SVG ИНТЕГРАЦИЯ
+// ============================================================
+function buildMap() {
+ const svg = document.getElementById('world-map');
+ const miniSvg = document.getElementById('minimap-svg');
+ 
+ // Океан
+ const ocean = document.createElementNS('http://www.w3.org/2000/svg','rect');
+ ocean.setAttribute('width','1000'); ocean.setAttribute('height','500');
+ ocean.setAttribute('fill','#0d1520');
+ svg.appendChild(ocean);
+ miniSvg.appendChild(ocean.cloneNode());
+
+ Object.entries(PROVINCE_PATHS).forEach(([pid, d]) => {
+   const prov = ENGINE.state.provinces[pid];
+   const owner = prov ? prov.owner : null;
+   const color = owner ? COUNTRY_COLORS[owner] : '#1a1f2e';
+   
+   const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+   path.setAttribute('d', d);
+   path.setAttribute('fill', color);
+   path.setAttribute('class', 'province');
+   path.setAttribute('data-pid', pid);
+   path.addEventListener('click', () => onProvinceClick(pid));
+   path.addEventListener('mousemove', (e) => showTooltip(e, pid));
+   path.addEventListener('mouseleave', hideTooltip);
+   svg.appendChild(path);
+
+   const miniPath = path.cloneNode();
+   miniPath.style.cursor = 'default';
+   miniSvg.appendChild(miniPath);
+ });
+}
+
+function refreshMap() {
+ const S = ENGINE.state;
+ document.querySelectorAll('.province').forEach(path => {
+   const pid = path.getAttribute('data-pid');
+   const prov = S.provinces[pid];
+   const owner = prov ? prov.owner : null;
+   let color = owner ? COUNTRY_COLORS[owner] : '#1a1f2e';
+   
+   if (owner === S.myId) color = '#2a5a9f';
+   if (S.countries[S.myId] && owner && S.countries[S.myId].atWar.includes(owner)) color = '#6a1a1a';
+   
+   path.setAttribute('fill', color);
+   path.setAttribute('class', owner === S.selectedId ? 'province selected' : 'province');
+ });
+ 
+ document.querySelectorAll('#minimap-svg path').forEach((path, i) => {
+   const mainPath = document.querySelectorAll('#world-map path.province')[i];
+   if (mainPath) path.setAttribute('fill', mainPath.getAttribute('fill'));
+ });
+}
+
+// ============================================================
+// СИСТЕМА ВЗАИМОДЕЙСТВИЯ (ОТРИСОВКА STATE)
+// ============================================================
+function onProvinceClick(pid) {
+ const S = ENGINE.state;
+ const owner = S.provinces[pid]?.owner;
+ if (!owner) return;
+ if (owner === S.myId) {
+   S.selectedId = null;
+   document.getElementById('sc-content').style.display = 'none';
+   document.getElementById('sc-placeholder').style.display = 'block';
+ } else {
+   S.selectedId = owner;
+   showSelectedCountry(owner);
+ }
+ refreshMap();
+}
+
+function showSelectedCountry(cid) {
+ const S = ENGINE.state;
+ const c = S.countries[cid];
+ const my = S.countries[S.myId];
+ 
+ document.getElementById('sc-placeholder').style.display = 'none';
+ document.getElementById('sc-content').style.display = 'block';
+ document.getElementById('sc-flag').textContent = c.flag;
+ document.getElementById('sc-name').textContent = c.name;
+ document.getElementById('sc-leader').textContent = c.leader;
+ document.getElementById('sc-ideo').textContent = IDEOLOGIES[c.ideology].name;
+ document.getElementById('sc-brigades').textContent = ENGINE.getFuzzyBrigades(c.brigades);
+ document.getElementById('sc-econ').textContent = ENGINE.getEconLabel(c.economy);
+ 
+ const atWar = my.atWar.includes(cid);
+ document.getElementById('sc-status').textContent = atWar ? '⚔ ВОЙНА' : '☮ Мир';
+ document.getElementById('sc-status').style.color = atWar ? 'var(--red)' : 'var(--green)';
+ 
+ const rel = my.relations[cid] || 0;
+ document.getElementById('sc-rel-val').textContent = ENGINE.getRelLabel(rel);
+ document.getElementById('sc-rel-num').textContent = rel;
+ const bar = document.getElementById('sc-rel-bar');
+ bar.style.width = ((rel + 100) / 2) + '%';
+ bar.style.background = rel > 30 ? 'var(--green)' : rel > -10 ? 'var(--amber)' : 'var(--red)';
+ 
+ const hasCB = ENGINE.hasCasusBelli(cid);
+ document.getElementById('btn-casus').style.display = hasCB ? 'none' : 'block';
+ document.getElementById('btn-declare-war').style.display = hasCB && !atWar ? 'block' : 'none';
+ if (atWar) {
+   document.getElementById('btn-casus').style.display = 'none';
+   document.getElementById('btn-declare-war').style.display = 'none';
+ }
+}
+
+function showTooltip(e, pid) {
+ const owner = ENGINE.state.provinces[pid]?.owner;
+ const c = owner ? ENGINE.state.countries[owner] : null;
+ const tip = document.getElementById('tooltip');
+ tip.style.display = 'block';
+ tip.style.left = (e.clientX+12)+'px';
+ tip.style.top = (e.clientY+12)+'px';
+ if (c) {
+   tip.innerHTML = `<strong>${c.flag} ${c.name}</strong><br><span style="color:var(--text2)">${IDEOLOGIES[c.ideology].name}</span><br>Бригады: ${ENGINE.getFuzzyBrigades(c.brigades)}`;
+ } else {
+   tip.textContent = 'Нейтральная территория';
+ }
+}
+function hideTooltip() { document.getElementById('tooltip').style.display='none'; }
+
+function updateUI() {
+ const S = ENGINE.state;
+ const my = S.countries[S.myId];
+ if (!my) return;
+ 
+ const el = (id, v) => { const e = document.getElementById(id); if(e) e.textContent=v; };
+ el('res-military', my.brigades * 10);
+ el('res-brigades', my.brigades);
+ el('res-economy', my.economy);
+ el('res-population', my.population + 'M');
+ el('res-provinces', my.provinces.length);
+ el('my-country-name', my.flag + ' ' + my.name);
+ el('my-leader', my.leader);
+ el('my-brigades', my.brigades);
+ el('my-econ', my.economy);
+ el('my-pop', my.population + 'M');
+ 
+ const atWarWith = my.atWar.map(id => S.countries[id]?.name).filter(Boolean);
+ el('my-status', atWarWith.length ? '⚔ Война: ' + atWarWith.join(', ') : '☮ Мирное время');
+ document.getElementById('my-status').style.color = atWarWith.length ? 'var(--red)' : 'var(--green)';
+ 
+ const ideTag = document.getElementById('my-ideology');
+ ideTag.textContent = IDEOLOGIES[my.ideology].name;
+ ideTag.className = 'ideology-tag ideo-' + my.ideology;
+ 
+ const months = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+ document.getElementById('date-display').textContent = months[S.date.getMonth()] + ' ' + S.date.getFullYear();
+ 
+ const econEl = document.getElementById('res-economy');
+ econEl.className = my.economy > 100 ? 'res-val good' : my.economy < 30 ? 'res-val bad' : 'res-val warn';
+ 
+ updateActionQueueUI();
+ updateWarListUI();
+ updateAllyListUI();
+ 
+ if (S.selectedId) showSelectedCountry(S.selectedId);
+}
+
+function updateActionQueueUI() {
+ const el = document.getElementById('action-queue');
+ const myActions = ENGINE.state.actionQueue.filter(a => a.owner === ENGINE.state.myId);
+ if (myActions.length === 0) {
+   el.innerHTML = '<div id="no-actions">Нет активных действий</div>';
+   return;
+ }
+ el.innerHTML = myActions.map(a => {
+   const pct = Math.round((1 - a.remaining/a.total) * 100);
+   return `<div class="action-item">
+     <div class="action-icon ${a.type}">${a.icon}</div>
+     <div class="action-info">
+       <div class="action-name">${a.name}</div>
+       <div class="action-timer">${a.remaining} ход(а) осталось</div>
+       <div class="action-progress"><div class="action-progress-fill ${a.type}" style="width:${pct}%"></div></div>
+     </div>
+   </div>`;
+ }).join('');
+}
+
+function updateWarListUI() {
+ const el = document.getElementById('war-list-bottom');
+ if (ENGINE.state.wars.length === 0) {
+   el.innerHTML = '<div style="color:var(--text2);font-size:11px;text-align:center;padding:10px">Мир во всём мире</div>';
+   document.getElementById('war-list').innerHTML = el.innerHTML;
+   return;
+ }
+ el.innerHTML = ENGINE.state.wars.map(w => {
+   const att = ENGINE.state.countries[w.attacker];
+   const def = ENGINE.state.countries[w.defender];
+   return `<div class="war-item">
+     <div class="war-title">${att?.flag||''} ${att?.name} vs ${def?.flag||''} ${def?.name}</div>
+     <div class="war-status">Начало: ход ${w.startTurn}</div>
+   </div>`;
+ }).join('');
+ document.getElementById('war-list').innerHTML = el.innerHTML;
+}
+
+function updateAllyListUI() {
+ const el = document.getElementById('ally-list');
+ const allies = ENGINE.myAllies();
+ if (allies.length === 0) {
+   el.innerHTML = '<div style="color:var(--text2);font-size:11px;text-align:center;padding:6px">Союзов нет</div>';
+   return;
+ }
+ el.innerHTML = allies.map(c => `<div style="padding:3px 0;font-size:11px;display:flex;gap:6px;align-items:center"><span>${c.flag}</span><span>${c.name}</span></div>`).join('');
+}
+
+// ============================================================
+// ВЗАИМОДЕЙСТВИЕ И МОДАЛКИ (СВЯЗЬ С ENGINE)
+// ============================================================
+function triggerNextTurn() {
+ document.getElementById('speed-select').addEventListener('change', e => ENGINE.state.turnMode = e.target.value);
+ ENGINE.nextTurn();
+ updateUI();
+ refreshMap();
+}
+
+function openModal(type) {
+ const overlay = document.getElementById('modal-overlay');
+ const body = document.getElementById('modal-body');
+ const actions = document.getElementById('modal-actions');
+ overlay.style.display = 'flex';
+ 
+ const my = ENGINE.my;
+ const sel = ENGINE.sel;
+ 
+ if (type === 'train-brigade') {
+   document.getElementById('modal-title').textContent = 'Создать бригаду';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Стоимость</span><span>30 экономики</span></div>
+     <div class="modal-row"><span class="mk">Время</span><span>3 хода</span></div>
+     <div class="modal-row"><span class="mk">Ваша экономика</span><span style="color:${my.economy>=30?'var(--green)':'var(--red)'}">${my.economy}</span></div>
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn primary" onclick="executeAction('train-brigade')">Формировать</button>`;
+ } else if (type === 'build-factory') {
+   document.getElementById('modal-title').textContent = 'Построить завод';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Стоимость</span><span>50 экономики</span></div>
+     <div class="modal-row"><span class="mk">Эффект</span><span>+12 экономики/ход</span></div>
+     <div class="modal-row"><span class="mk">Ваша экономика</span><span style="color:${my.economy>=50?'var(--green)':'var(--red)'}">${my.economy}</span></div>
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn primary" onclick="executeAction('build-factory')">Строить</button>`;
+ } else if (type === 'improve-relations' || type === 'improve-selected') {
+   const target = sel || null;
+   document.getElementById('modal-title').textContent = 'Улучшить отношения';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Стоимость</span><span>10 экономики</span></div>
+     ${target ? `<div class="modal-row"><span class="mk">Цель</span><span>${target.flag} ${target.name}</span></div>` : ''}
+     ${!target ? '<select id="modal-target-sel" class="modal-input">' + Object.values(ENGINE.state.countries).filter(c=>c.id!==my.id).map(c=>`<option value="${c.id}">${c.flag} ${c.name} (${my.relations[c.id]||0})</option>`).join('') + '</select>' : ''}
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn primary" onclick="executeAction('improve-relations', '${target ? target.id : ''}')">Переговоры</button>`;
+ } else if (type === 'form-alliance') {
+   document.getElementById('modal-title').textContent = 'Предложить союз';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Требование</span><span>Отношения 60+</span></div>
+     <select id="modal-ally-sel" class="modal-input">
+       ${Object.values(ENGINE.state.countries).filter(c=>c.id!==my.id&&(my.relations[c.id]||0)>=60).map(c=>`<option value="${c.id}">${c.flag} ${c.name}</option>`).join('')||'<option disabled>Нет подходящих стран</option>'}
+     </select>
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn primary" onclick="executeAction('form-alliance')">Предложить</button>`;
+ } else if (type === 'casus-belli') {
+   if (!sel) return closeModal();
+   document.getElementById('modal-title').textContent = '⚔ Оправдание войны';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Цель</span><span>${sel.flag} ${sel.name}</span></div>
+     <div class="modal-row"><span class="mk">Стоимость</span><span>20 экономики</span></div>
+     <div class="modal-row"><span class="mk">Отношения упадут</span><span style="color:var(--red)">-8 у всех</span></div>
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn danger" onclick="executeAction('casus-belli','${sel.id}')">Оправдать</button>`;
+ } else if (type === 'recruit-manpower') {
+   document.getElementById('modal-title').textContent = 'Мобилизация';
+   body.innerHTML = `
+     <div class="modal-row"><span class="mk">Эффект</span><span>+8 бригад</span></div>
+     <div class="modal-row"><span class="mk">Стоимость</span><span>Население -4%, Экономика -15</span></div>
+   `;
+   actions.innerHTML = `<button class="modal-btn" onclick="closeModal()">Отмена</button><button class="modal-btn danger" onclick="executeAction('recruit-manpower')">Мобилизовать</button>`;
+ }
+}
+
+function closeModal(e) {
+ if (e && e.target !== document.getElementById('modal-overlay')) return;
+ document.getElementById('modal-overlay').style.display = 'none';
+}
+
+function executeAction(type, targetId) {
+ let res = { ok: false, msg: 'Unknown' };
+ 
+ if (type === 'train-brigade') res = ENGINE.trainBrigade();
+ else if (type === 'build-factory') res = ENGINE.buildFactory();
+ else if (type === 'improve-relations') {
+   let tid = targetId || document.getElementById('modal-target-sel')?.value;
+   res = ENGINE.improveRelations(tid);
+ }
+ else if (type === 'form-alliance') {
+   let tid = document.getElementById('modal-ally-sel')?.value;
+   res = ENGINE.proposeAlliance(tid);
+ }
+ else if (type === 'casus-belli') res = ENGINE.startCasusBelli(targetId);
+ else if (type === 'declare-war') res = ENGINE.declareWar(ENGINE.state.selectedId);
+ else if (type === 'recruit-manpower') res = ENGINE.mobilize();
+
+ if (!res.ok) UI.showNotif(res.msg, 'war');
+ 
+ closeModal();
+ updateUI();
+ refreshMap();
+}
+
+// ============================================================
+// НОВОСТИ И ЧАТ
+// ============================================================
+function showCurrentNews() {
+ const news = ENGINE.state.news;
+ if (news.length === 0 || newsCursor < 0) return;
+ const n = news[newsCursor];
+ document.getElementById('news-date').textContent = n.dateStr;
+ document.getElementById('news-title').textContent = n.title;
+ document.getElementById('news-body').textContent = n.body;
+ document.getElementById('news-counter').textContent = `${newsCursor+1} / ${news.length}`;
+ document.getElementById('news-count-label').textContent = `${news.length} новостей`;
+}
+
+function nextNews() { if (newsCursor < ENGINE.state.news.length - 1) { newsCursor++; showCurrentNews(); } }
+function prevNews() { if (newsCursor > 0) { newsCursor--; showCurrentNews(); } }
+
+function openDiplomaticChat() {
+ const sel = ENGINE.state.selectedId;
+ if (!sel && !ENGINE.state.chatTarget) { UI.showNotif('Выберите страну', 'info'); return; }
+ ENGINE.state.chatTarget = sel || ENGINE.state.chatTarget;
+ const tc = ENGINE.state.countries[ENGINE.state.chatTarget];
+ document.getElementById('chat-title').textContent = `Переговоры: ${tc.flag} ${tc.name}`;
+ document.getElementById('chat-messages').innerHTML = '';
+ document.getElementById('chat-panel').classList.add('open');
+ addChatMessage(tc.name, "Дипломатический канал связи установлен. Чем можем помочь?", 'from-them');
+}
+function closeDiplomaticChat() { document.getElementById('chat-panel').classList.remove('open'); }
+function addChatMessage(sender, text, cls) {
+ const el = document.createElement('div');
+ el.className = `chat-msg ${cls}`;
+ el.innerHTML = `<div class="msg-sender">${sender}</div>${text}`;
+ document.getElementById('chat-messages').appendChild(el);
+ document.getElementById('chat-messages').scrollTop = 9999;
+}
+function sendChatMsg() {
+ const inp = document.getElementById('chat-input');
+ const msg = inp.value.trim();
+ if (!msg) return;
+ inp.value = '';
+ addChatMessage(ENGINE.my.name, msg, 'from-me');
+ setTimeout(() => addChatMessage(ENGINE.sel.name, "Ответ ИИ-модели дипломатии отключен в этой версии. Мы приняли вашу ноту.", 'from-them'), 500);
+}
+
+// ============================================================
+// ЗАПУСК ИГРЫ
+// ============================================================
+function showCountrySelect() {
+ const list = document.getElementById('cs-list');
+ list.innerHTML = WORLD_COUNTRIES.map(c => `
+   <div class="cs-card" onclick="startGame('${c.id}')">
+     <div class="cs-flag">${c.flag}</div>
+     <div class="cs-name">${c.name}</div>
+     <div class="cs-ideo">${IDEOLOGIES[c.ideology].name}</div>
+     <div class="cs-power">Эк: ${c.econ} | Бриг: ${c.brigades}</div>
+   </div>
+ `).join('');
+}
+
+function startGame(countryId) {
+ ENGINE.init();
+ ENGINE.state.myId = countryId;
+ 
+ document.getElementById('country-select-screen').style.display = 'none';
+ document.getElementById('topbar').style.display = 'flex';
+ document.getElementById('main').style.display = 'flex';
+ document.getElementById('bottom-bar').style.display = 'flex';
+ 
+ buildMap();
+ refreshMap();
+ updateUI();
+ 
+ ENGINE.addNews('info', 'Добро пожаловать!', `Вы возглавили государство. Приведите свой народ к мировому господству.`, [countryId]);
+}
+
+showCountrySelect();
+</script>
+</body>
+</html>
